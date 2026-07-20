@@ -1,0 +1,41 @@
+name: Sync ADIMA feed z FTP
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+    - cron: '0 7 * * *'
+    - cron: '0 10 * * *'
+  workflow_dispatch: {}   # umožní ruční spuštění tlačítkem v záložce Actions
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repozitáře
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Stažení XML z FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: |
+          curl -sS --fail \
+            "ftp://${FTP_HOST}:${FTP_PORT}/adima_catexp_2481.xml" \
+            --user "${FTP_USER}:${FTP_PASS}" \
+            --connect-timeout 30 --retry 3 --retry-delay 10 \
+            -o adima_catexp_2481.xml
+
+      - name: Commit a force-push (jeden commit, aby repozitář neuhromě rostl)
+        run: |
+          git config user.name "feed-bot"
+          git config user.email "feed-bot@users.noreply.github.com"
+          git add adima_catexp_2481.xml
+          git commit --amend -m "Aktualizace feedu $(date -u +'%Y-%m-%d %H:%M UTC')" --allow-empty
+          git push --force origin HEAD:main
